@@ -1,4 +1,9 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { MypageService } from 'src/user/mypage/mypage.service';
 import { UserService } from 'src/user/user.service';
 
@@ -11,9 +16,11 @@ import { MailService } from 'src/mail/mail.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
+import { CachingConfig } from 'cache-manager';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private userService: UserService,
@@ -45,7 +52,6 @@ export class AuthService {
     });
 
     await this.userService.updateRefreshToken(user.user_id, refreshToken);
-    const userData = await this.userService;
 
     return {
       access_token: accessToken,
@@ -125,7 +131,7 @@ export class AuthService {
     });
 
     if (!user || !user.user_cus_id) return null;
-    if (!user || !user.user_pwd) return null;
+    // if (!user || !user.user_pwd) return null;
 
     const isMatch = await bcrypt.compare(user_pwd, user.user_pwd);
 
@@ -172,7 +178,6 @@ export class AuthService {
     }
 
     // 바로 토큰 발송
-    // 여기서 토큰 저장 해야하나?
     await this.requestEmailVerification(email);
     return {
       message: '사용 가능한 이메일입니다. 발송된 인증코드를 확인해주세요',
@@ -201,16 +206,17 @@ export class AuthService {
   async requestEmailVerification(email: string) {
     console.log('requestEmailVerification 입장 ');
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
     const trimEmail = email.toLowerCase().trim();
-    const key = `token-${trimEmail}`;
+    const key = `token-${trimEmail}`.trim();
 
     console.log('인증 코드 캐시에 저장할거 : ', code);
     console.log('인증 코드 캐시 저장키 - 리퀘스트 안 : ', key);
 
     try {
-      // 캐시에 저장
-      // ...? 왜 TTl을 0으로 하면 오류안남?
-      await this.cacheManager.set<string>(key, code, 0); // TTL을 0으로 설정하여 만료되지 않게 함
+      await this.cacheManager.set<string>(key, code, {
+        ttl: 300,
+      } as CachingConfig); // 5분 유지
 
       // 저장 직후 확인
       const confirm = await this.cacheManager.get<string>(key);
@@ -231,12 +237,13 @@ export class AuthService {
   async verifyCode(email: string, inputCode: string) {
     console.log('베리피 코드 들어옴 ');
     const trimEmail = email.toLowerCase().trim();
-    const key = `token-${trimEmail}`;
+    const key = `token-${trimEmail}`.trim();
 
     console.log('조회 키- 베리피 토큰안 :', key);
 
     try {
       const savedCode = await this.cacheManager.get<string>(key);
+      this.logger.log(`세이브드 토큰 잘 갖고왔? : ${savedCode}`);
       console.log('세이브드 토큰 : ', savedCode);
       console.log('inputCode   : ', inputCode);
 
@@ -247,7 +254,9 @@ export class AuthService {
       }
 
       await this.cacheManager.del(key);
-      await this.cacheManager.set<boolean>(`verified-${trimEmail}`, true, 0);
+      await this.cacheManager.set<boolean>(`verified-${trimEmail}`, true, {
+        ttl: 300,
+      } as CachingConfig);
       return { message: '이메일 인증 성공', status: 'success' };
     } catch (error) {
       console.error('인증 코드 검증 중 에러 발생:', error);
@@ -270,7 +279,10 @@ export class AuthService {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // 캐시에 저장
-    await this.cacheManager.set<string>(`find-pwd-${user_email}`, code, 0);
+    const cacheKey = `find-pwd-${user_email.trim()}`.trim();
+    await this.cacheManager.set<string>(cacheKey, code, {
+      ttl: 300,
+    } as CachingConfig);
     console.log('비번 찾기 이메일 인증 토큰 : ', code);
     // 이 이메일로 가입한게 맞으면 인증 토큰 쏴주기
     await this.mailService.sendVerificationCode(user_email, code);
@@ -284,7 +296,8 @@ export class AuthService {
   // 비밀번호 찾기시 이메일 인증
   async findPwdEmailVerify(user_email: string, token: string) {
     console.log('비밀번호 찾기 이메일 인증 들어옴 : ');
-    const cacheKey = `find-pwd-${user_email}`;
+    const trimEmail = user_email.toLowerCase().trim();
+    const cacheKey = `find-pwd-${trimEmail}`.trim();
     const code = await this.cacheManager.get<string>(cacheKey);
 
     if (!code || code !== token.trim()) {
@@ -347,12 +360,10 @@ export class AuthService {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     await this.mailService.sendVerificationCode(userEmail!, code);
 
-    await this.cacheManager.set<string>(
-      `find-id-${userEmail}`,
-      code,
-      0,
-      // TTL을 0으로 설정하여 만료되지 않게 함
-    );
+    const cacheKey = `find-id-${userEmail.trim()}`.trim();
+    await this.cacheManager.set<string>(cacheKey, code, {
+      ttl: 300,
+    } as CachingConfig);
 
     console.log('아이디 찾기 인증코드 발송 : ', code);
 
@@ -365,18 +376,18 @@ export class AuthService {
   // 아이디 찾기시 이메일 인증
   async findIdEmailVerify(user_email: string, token: string) {
     console.log('아이디 찾기 이메일 인증 들어옴 : ');
+    const trimEmail = user_email.toLowerCase().trim();
+    const cacheKey = `find-id-${trimEmail}`.trim();
+    const code = await this.cacheManager.get<string>(`find-id-${cacheKey}`);
 
-    await this.cacheManager
-      .get<string>(`find-id-${user_email}`)
-      .then((code) => {
-        console.log('유저가 입력한 토큰 : ', token);
-        console.log('코드 : ', code);
-        if (!code || code !== token.trim()) {
-          throw new UnauthorizedException(
-            '인증코드가 일치하지 않습니다. 다시 입력해주세요',
-          );
-        }
-      });
+    console.log('유저가 입력한 토큰 : ', token);
+    console.log('코드 : ', code);
+    if (!code || code !== token.trim()) {
+      throw new UnauthorizedException(
+        '인증코드가 일치하지 않습니다. 다시 입력해주세요',
+      );
+    }
+
     // 인증 성공시 아이디 알려주기
     const user = await this.userService.isExistEmail(user_email);
 
@@ -397,7 +408,9 @@ export class AuthService {
   // 캐시 테스트
   async testCache(): Promise<string> {
     try {
-      await this.cacheManager.set('test', 'hello-world', 60);
+      await this.cacheManager.set('test', 'hello-world', {
+        ttl: 300,
+      } as CachingConfig); // 5분
       const value = await this.cacheManager.get<string>('test');
       console.log('캐시에서 갖고옴 : ', value);
       return value ?? '캐시 못 읽음...;;';
