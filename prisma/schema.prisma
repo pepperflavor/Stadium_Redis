@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id           Int        @id @default(autoincrement())
+  user_cus_id       String     @unique
+  user_email        String     @unique
+  user_pwd          String
+  user_nick         String     @db.Char(20)
+  user_grade        Int        @default(0)
+  user_status       Int        @default(0)
+  user_refreshtoken String?
+  user_like_staId   Int
+  AnonyUser         AnonyUser?
+  AppleUSer         AppleUser?
+  favorits          Favorit[]
+  messages          Message[]
+  stadium           Stadium    @relation(fields: [user_like_staId], references: [sta_id])
+  ChatRoom          ChatRoom[] @relation("ChatRoomToUser")
+}
+
+model AnonyUser {
+  ano_id   Int    @id @default(autoincrement())
+  ano_uuid String @unique
+  userID   Int    @unique
+  user     User   @relation(fields: [userID], references: [user_id])
+}
+
+model AppleUser {
+  app_user_id Int  @id @default(autoincrement())
+  userID      Int  @unique
+  user        User @relation(fields: [userID], references: [user_id])
+}
+
+model Favorit {
+  fav_id     Int     @id @default(autoincrement())
+  fa_user_id Int
+  fa_sta_id  Int
+  stadium    Stadium @relation(fields: [fa_sta_id], references: [sta_id], map: "fk_favorit_to_stadium")
+  user       User    @relation(fields: [fa_user_id], references: [user_id], map: "fk_favorit_to_user")
+}
+
+model Stadium {
+  sta_id         Int                    @id @default(autoincrement())
+  sta_image      String
+  sta_lati       Float
+  sta_long       Float
+  sta_name       String
+  sta_team       String
+  Cafeteria      Cafeteria[]
+  Favorit        Favorit[]
+  Recommendation PlayerRecommendation[] @relation("StadiumRecommendations")
+  User           User[]
+}
+
+model PlayerRecommendation {
+  reco_id        Int     @id @default(autoincrement())
+  reco_name      String
+  reco_image     String
+  reco_player    String?
+  reco_add       String
+  reco_tp        String
+  reco_menu      String
+  reco_stadiumId Int
+  stadium        Stadium @relation("StadiumRecommendations", fields: [reco_stadiumId], references: [sta_id])
+}
+
+model Cafeteria {
+  cafe_id        Int     @id @default(autoincrement())
+  cafe_name      String
+  cafe_image     String
+  cafe_location  String
+  cafe_floor     Int
+  cafe_category  String
+  cafe_stadiumId Int
+  stadium        Stadium @relation(fields: [cafe_stadiumId], references: [sta_id])
+}
+
+model StartPitcher {
+  id              Int      @id @default(autoincrement())
+  pit_game_id     String
+  pit_home_team   String
+  pit_home_name   String
+  pit_home_image  String
+  pit_away_name   String
+  pit_away_team   String
+  pit_away_image  String
+  pit_game_time   String
+  pit_broad_image String
+  createdAt       DateTime @default(now())
+}
+
+
+model ChatRoom {
+  id       Int       @id @default(autoincrement())
+  name     String
+  messages Message[]
+  users    User[]    @relation("ChatRoomToUser")
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  content    String
+  createdAt  DateTime @default(now())
+  chatRoomId Int
+  userId     Int
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
+  user       User     @relation(fields: [userId], references: [user_id])
+}
+
+model recommendations {
+  id        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content   String?
+  metadata  Json?
+  embedding Unsupported("vector")?
+}
