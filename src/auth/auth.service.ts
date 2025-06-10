@@ -1,4 +1,9 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { MypageService } from 'src/user/mypage/mypage.service';
 import { UserService } from 'src/user/user.service';
 
@@ -9,7 +14,8 @@ import { AuthUser } from 'src/types/auth-user.interface';
 import { MailService } from 'src/mail/mail.service';
 
 import { ConfigService } from '@nestjs/config';
-import { CacheService } from 'src/cache/cache.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class AuthService {
@@ -20,7 +26,8 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly config: ConfigService,
-    private cacheManager: CacheService,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   // 아이디로 로그인
@@ -207,7 +214,7 @@ export class AuthService {
       this.logger.log(`생성된 인증 코드: ${code}`);
 
       // 캐시에 저장 (5분 TTL)
-      await this.cacheManager.set(key, code, 300000);
+      await this.cacheManager.set(key, code);
 
       // 저장 확인
       const savedCode = await this.cacheManager.get(key);
@@ -251,7 +258,7 @@ export class AuthService {
       }
 
       await this.cacheManager.del(key);
-      await this.cacheManager.set(`verified-${trimEmail}`, true, 300000);
+      await this.cacheManager.set(`verified-${trimEmail}`, true);
       this.logger.log('인증 성공 - 이메일 검증 상태 저장됨');
 
       return { message: '이메일 인증 성공', status: 'success' };

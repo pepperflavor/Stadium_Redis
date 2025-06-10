@@ -18,25 +18,23 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { PlayerRecommandModule } from './player-recommand/player-recommand.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
-import { CacheConfigService } from './common/cacheConfig.service';
-import * as redisStore from 'cache-manager-redis-store';
+import { redisStore } from 'cache-manager-ioredis-yet';
 import { CacheConfigModule } from './cache/cache.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.dev'],
     }),
     ScheduleModule.forRoot(),
     // CacheModule.registerAsync({
     //   imports: [ConfigModule],
     //   inject: [ConfigService],
-    //   useFactory: async (configService: ConfigService) => ({
-    //     isGlobal: true,
-    //     store: redisStore,
-    //     host: configService.get('REDIS_HOST', 'redis'),
-    //     port: configService.get('REDIS_PORT', 6379),
+    //   useFactory: async (config: ConfigService) => ({
+    //     store: await redisStore({
+    //       host: config.get('REDIS_HOST', 'redis'),
+    //       port: config.get('REDIS_PORT', 6379),
+    //     }),
     //     ttl: 60000,
     //   }),
     // }),
@@ -57,10 +55,10 @@ import { CacheConfigModule } from './cache/cache.module';
     AppService,
     PrismaService,
     CrawlingService,
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: CacheInterceptor,
-    },
+    // {
+    //   provide: APP_INTERCEPTOR,
+    //   useClass: CacheInterceptor,
+    // },
   ],
 })
 export class AppModule {}

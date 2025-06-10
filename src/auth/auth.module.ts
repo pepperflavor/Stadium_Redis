@@ -6,7 +6,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MypageModule } from '../user/mypage/mypage.module';
 import { MailModule } from '../mail/mail.module';
-import { CacheService } from '../cache/cache.service';
+import { CacheModule } from '@nestjs/cache-manager';
 import { CacheConfigModule } from 'src/cache/cache.module';
 
 @Module({
@@ -14,6 +14,7 @@ import { CacheConfigModule } from 'src/cache/cache.module';
     UserModule,
     MypageModule,
     MailModule,
+    CacheConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -24,10 +25,9 @@ import { CacheConfigModule } from 'src/cache/cache.module';
         },
       }),
     }),
-    CacheConfigModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, CacheService],
+  providers: [AuthService],
   exports: [AuthService],
 })
 export class AuthModule {}
