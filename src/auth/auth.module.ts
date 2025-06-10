@@ -14,7 +14,6 @@ import { CacheConfigModule } from 'src/cache/cache.module';
     UserModule,
     MypageModule,
     MailModule,
-
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

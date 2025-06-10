@@ -400,6 +400,8 @@ export class AuthService {
 
   // 캐시 테스트
   async testCache() {
+    console.log('레디스 호스트 출력 : ');
+    console.log(this.config.get('REDIS_HOST'));
     try {
       const value = await this.cacheManager.set('test', 'hello-world'); // 5분
 
