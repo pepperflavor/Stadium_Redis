@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { MypageService } from 'src/user/mypage/mypage.service';
 import { UserService } from 'src/user/user.service';
 
@@ -13,20 +8,19 @@ import * as bcrypt from 'bcrypt';
 import { AuthUser } from 'src/types/auth-user.interface';
 import { MailService } from 'src/mail/mail.service';
 
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
-import { val } from 'cheerio/dist/commonjs/api/attributes';
+import { CacheService } from 'src/cache/cache.service';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   constructor(
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private userService: UserService,
     private myPageService: MypageService,
     private jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly config: ConfigService,
+    private cacheManager: CacheService,
   ) {}
 
   // 아이디로 로그인
@@ -146,7 +140,7 @@ export class AuthService {
 
     const trimEmail = userData.user_email.toLowerCase().trim();
     const key = `verified-${trimEmail}`;
-    const isVerifiEmail = await this.cacheManager.get<boolean>(key);
+    const isVerifiEmail = await this.cacheManager.get(key);
 
     console.log('isVerifiEmail : ', isVerifiEmail);
 
@@ -204,28 +198,27 @@ export class AuthService {
   // 이메일 토큰 인증 관련 시작
   // 유저가 입력한 이메일에 토큰 발송
   async requestEmailVerification(email: string) {
-    this.logger.log('이메일 인증 코드 발송 시작');
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-
+    this.logger.log('이메일 인증 요청 시작');
     const trimEmail = email.toLowerCase().trim();
     const key = `token-${trimEmail}`.trim();
 
-    this.logger.log(`생성된 인증 코드: ${code}`);
-    this.logger.log(`저장에 사용되는 키: ${key}`);
-
     try {
-      await this.cacheManager.set<string>(key, code, 3600); // 1시간 유지
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      this.logger.log(`생성된 인증 코드: ${code}`);
 
-      // 저장 직후 확인
-      const confirm = await this.cacheManager.get<string>(key);
-      this.logger.log(`저장 확인 - 캐시에서 읽은 코드: ${confirm}`);
+      // 캐시에 저장 (5분 TTL)
+      await this.cacheManager.set(key, code, 300000);
 
-      if (!confirm) {
-        throw new Error('캐시 저장에 실패했습니다');
-      }
+      // 저장 확인
+      const savedCode = await this.cacheManager.get(key);
+      this.logger.log(`저장된 인증 코드 확인: ${savedCode}`);
 
       await this.mailService.sendVerificationCode(trimEmail, code);
-      this.logger.log('인증 메일 발송 완료');
+
+      return {
+        message: '인증 코드가 이메일로 전송되었습니다.',
+        status: 'success',
+      };
     } catch (error) {
       this.logger.error('캐시 저장/조회 중 에러 발생:', error);
       throw new UnauthorizedException('인증 코드 생성 중 오류가 발생했습니다.');
@@ -241,7 +234,7 @@ export class AuthService {
     this.logger.log(`검증에 사용되는 키: ${key}`);
 
     try {
-      const savedCode = await this.cacheManager.get<string>(key);
+      const savedCode = await this.cacheManager.get(key);
       this.logger.log(`저장된 인증 코드: ${savedCode}`);
       this.logger.log(`입력된 인증 코드: ${inputCode}`);
 
@@ -258,11 +251,9 @@ export class AuthService {
       }
 
       await this.cacheManager.del(key);
-      await this.cacheManager.set<boolean>(
-        `verified-${trimEmail}`,
-        true,
-        300000,
-      );
+      await this.cacheManager.set(`verified-${trimEmail}`, true, 300000);
+      this.logger.log('인증 성공 - 이메일 검증 상태 저장됨');
+
       return { message: '이메일 인증 성공', status: 'success' };
     } catch (error) {
       this.logger.error('인증 코드 검증 중 에러 발생:', error);
@@ -286,7 +277,7 @@ export class AuthService {
 
     // 캐시에 저장
     const cacheKey = `find-pwd-${user_email.trim()}`.trim();
-    await this.cacheManager.set<string>(cacheKey, code, 300000);
+    await this.cacheManager.set(cacheKey, code);
     console.log('비번 찾기 이메일 인증 토큰 : ', code);
     // 이 이메일로 가입한게 맞으면 인증 토큰 쏴주기
     await this.mailService.sendVerificationCode(user_email, code);
@@ -302,7 +293,7 @@ export class AuthService {
     console.log('비밀번호 찾기 이메일 인증 들어옴 : ');
     const trimEmail = user_email.toLowerCase().trim();
     const cacheKey = `find-pwd-${trimEmail}`.trim();
-    const code = await this.cacheManager.get<string>(cacheKey);
+    const code = await this.cacheManager.get(cacheKey);
 
     if (!code || code !== token.trim()) {
       throw new UnauthorizedException(
@@ -365,7 +356,7 @@ export class AuthService {
     await this.mailService.sendVerificationCode(userEmail!, code);
 
     const cacheKey = `find-id-${userEmail.trim()}`.trim();
-    await this.cacheManager.set<string>(cacheKey, code, 300000);
+    await this.cacheManager.set(cacheKey, code);
 
     console.log('아이디 찾기 인증코드 발송 : ', code);
 
@@ -380,7 +371,7 @@ export class AuthService {
     console.log('아이디 찾기 이메일 인증 들어옴 : ');
     const trimEmail = user_email.toLowerCase().trim();
     const cacheKey = `find-id-${trimEmail}`.trim();
-    const code = await this.cacheManager.get<string>(cacheKey);
+    const code = await this.cacheManager.get(cacheKey);
 
     console.log('유저가 입력한 토큰 : ', token);
     console.log('코드 : ', code);

@@ -20,7 +20,6 @@ import { PlayerRecommandModule } from './player-recommand/player-recommand.modul
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CacheConfigService } from './common/cacheConfig.service';
 import * as redisStore from 'cache-manager-redis-store';
-import { CacheTestModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -31,9 +30,14 @@ import { CacheTestModule } from './cache/cache.module';
     ScheduleModule.forRoot(),
     CacheModule.registerAsync({
       imports: [ConfigModule],
-      useClass: CacheConfigService,
       inject: [ConfigService],
-      isGlobal: true,
+      useFactory: async (configService: ConfigService) => ({
+        isGlobal: true,
+        store: redisStore,
+        host: configService.get('REDIS_HOST', 'redis'),
+        port: configService.get('REDIS_PORT', 6379),
+        ttl: 60000,
+      }),
     }),
     AuthModule,
     StadiumModule,
@@ -45,7 +49,6 @@ import { CacheTestModule } from './cache/cache.module';
     AzureStorageModule,
     MailModule,
     PlayerRecommandModule,
-    CacheTestModule,
   ],
   controllers: [AppController],
   providers: [

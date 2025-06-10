@@ -1,33 +1,34 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { UserModule } from 'src/user/user.module';
-import { UserService } from 'src/user/user.service';
+import { UserModule } from '../user/user.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MypageModule } from 'src/user/mypage/mypage.module';
-import { LocalStrategy } from './local.strategy';
-import { JwtStrategy } from './jwt.strategy';
-import { MailModule } from 'src/mail/mail.module';
+import { MypageModule } from '../user/mypage/mypage.module';
+import { MailModule } from '../mail/mail.module';
+import { CacheService } from '../cache/cache.service';
+import { CacheConfigModule } from 'src/cache/cache.module';
 
 @Module({
   imports: [
+    UserModule,
+    MypageModule,
     MailModule,
-    forwardRef(() => UserModule),
-    forwardRef(() => MypageModule),
+
     JwtModule.registerAsync({
-      imports: [ConfigModule], // 의존성 주입
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        global: true,
-        secret: configService.get<string>('JWT_ACCESS_SECRET'),
+        secret: configService.get('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRE') || '1d',
+          expiresIn: configService.get('JWT_EXPIRE', '1h'),
         },
       }),
     }),
+    CacheConfigModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [AuthService, CacheService],
+  exports: [AuthService],
 })
 export class AuthModule {}
