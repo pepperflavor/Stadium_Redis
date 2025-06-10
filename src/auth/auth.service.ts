@@ -13,16 +13,15 @@ import * as bcrypt from 'bcrypt';
 import { AuthUser } from 'src/types/auth-user.interface';
 import { MailService } from 'src/mail/mail.service';
 
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
-import { CachingConfig } from 'cache-manager';
+import { val } from 'cheerio/dist/commonjs/api/attributes';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   constructor(
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
     private userService: UserService,
     private myPageService: MypageService,
     private jwtService: JwtService,
@@ -178,6 +177,7 @@ export class AuthService {
     }
 
     // 바로 토큰 발송
+
     await this.requestEmailVerification(email);
     return {
       message: '사용 가능한 이메일입니다. 발송된 인증코드를 확인해주세요',
@@ -204,62 +204,68 @@ export class AuthService {
   // 이메일 토큰 인증 관련 시작
   // 유저가 입력한 이메일에 토큰 발송
   async requestEmailVerification(email: string) {
-    console.log('requestEmailVerification 입장 ');
+    this.logger.log('이메일 인증 코드 발송 시작');
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const trimEmail = email.toLowerCase().trim();
     const key = `token-${trimEmail}`.trim();
 
-    console.log('인증 코드 캐시에 저장할거 : ', code);
-    console.log('인증 코드 캐시 저장키 - 리퀘스트 안 : ', key);
+    this.logger.log(`생성된 인증 코드: ${code}`);
+    this.logger.log(`저장에 사용되는 키: ${key}`);
 
     try {
-      await this.cacheManager.set<string>(key, code, {
-        ttl: 300,
-      } as CachingConfig); // 5분 유지
+      await this.cacheManager.set<string>(key, code, 3600); // 1시간 유지
 
       // 저장 직후 확인
       const confirm = await this.cacheManager.get<string>(key);
-      console.log('confirm 저장하자마자 꺼냄 : ', confirm);
+      this.logger.log(`저장 확인 - 캐시에서 읽은 코드: ${confirm}`);
 
       if (!confirm) {
-        throw new Error('캐시 저장 실패!');
+        throw new Error('캐시 저장에 실패했습니다');
       }
 
       await this.mailService.sendVerificationCode(trimEmail, code);
+      this.logger.log('인증 메일 발송 완료');
     } catch (error) {
-      console.error('캐시 저장/조회 중 에러 발생:', error);
+      this.logger.error('캐시 저장/조회 중 에러 발생:', error);
       throw new UnauthorizedException('인증 코드 생성 중 오류가 발생했습니다.');
     }
   }
 
   // 회원 가입시 이메일 토큰 검증
   async verifyCode(email: string, inputCode: string) {
-    console.log('베리피 코드 들어옴 ');
+    this.logger.log('이메일 인증 검증 시작');
     const trimEmail = email.toLowerCase().trim();
     const key = `token-${trimEmail}`.trim();
 
-    console.log('조회 키- 베리피 토큰안 :', key);
+    this.logger.log(`검증에 사용되는 키: ${key}`);
 
     try {
       const savedCode = await this.cacheManager.get<string>(key);
-      this.logger.log(`세이브드 토큰 잘 갖고왔? : ${savedCode}`);
-      console.log('세이브드 토큰 : ', savedCode);
-      console.log('inputCode   : ', inputCode);
+      this.logger.log(`저장된 인증 코드: ${savedCode}`);
+      this.logger.log(`입력된 인증 코드: ${inputCode}`);
 
-      if (!savedCode || savedCode !== inputCode.toUpperCase().trim()) {
+      if (!savedCode) {
+        throw new UnauthorizedException(
+          '인증 코드가 만료되었거나 존재하지 않습니다.',
+        );
+      }
+
+      if (savedCode !== inputCode.toUpperCase().trim()) {
         throw new UnauthorizedException(
           '인증코드가 일치하지 않습니다. 다시 시도해주세요',
         );
       }
 
       await this.cacheManager.del(key);
-      await this.cacheManager.set<boolean>(`verified-${trimEmail}`, true, {
-        ttl: 300,
-      } as CachingConfig);
+      await this.cacheManager.set<boolean>(
+        `verified-${trimEmail}`,
+        true,
+        300000,
+      );
       return { message: '이메일 인증 성공', status: 'success' };
     } catch (error) {
-      console.error('인증 코드 검증 중 에러 발생:', error);
+      this.logger.error('인증 코드 검증 중 에러 발생:', error);
       throw new UnauthorizedException('인증 코드 검증 중 오류가 발생했습니다.');
     }
   }
@@ -280,9 +286,7 @@ export class AuthService {
 
     // 캐시에 저장
     const cacheKey = `find-pwd-${user_email.trim()}`.trim();
-    await this.cacheManager.set<string>(cacheKey, code, {
-      ttl: 300,
-    } as CachingConfig);
+    await this.cacheManager.set<string>(cacheKey, code, 300000);
     console.log('비번 찾기 이메일 인증 토큰 : ', code);
     // 이 이메일로 가입한게 맞으면 인증 토큰 쏴주기
     await this.mailService.sendVerificationCode(user_email, code);
@@ -361,9 +365,7 @@ export class AuthService {
     await this.mailService.sendVerificationCode(userEmail!, code);
 
     const cacheKey = `find-id-${userEmail.trim()}`.trim();
-    await this.cacheManager.set<string>(cacheKey, code, {
-      ttl: 300,
-    } as CachingConfig);
+    await this.cacheManager.set<string>(cacheKey, code, 300000);
 
     console.log('아이디 찾기 인증코드 발송 : ', code);
 
@@ -378,13 +380,13 @@ export class AuthService {
     console.log('아이디 찾기 이메일 인증 들어옴 : ');
     const trimEmail = user_email.toLowerCase().trim();
     const cacheKey = `find-id-${trimEmail}`.trim();
-    const code = await this.cacheManager.get<string>(`find-id-${cacheKey}`);
+    const code = await this.cacheManager.get<string>(cacheKey);
 
     console.log('유저가 입력한 토큰 : ', token);
     console.log('코드 : ', code);
     if (!code || code !== token.trim()) {
       throw new UnauthorizedException(
-        '인증코드가 일치하지 않습니다. 다시 입력해주세요',
+        '인증코드가 일치하지 않습니다. 다시 시도해주세요',
       );
     }
 
@@ -397,7 +399,7 @@ export class AuthService {
       );
     }
 
-    await this.cacheManager.del(`find-id-${user_email}`);
+    await this.cacheManager.del(cacheKey);
     return {
       user_cus_id: user.user_cus_id,
       status: 'success',
@@ -406,17 +408,22 @@ export class AuthService {
   }
 
   // 캐시 테스트
-  async testCache(): Promise<string> {
+  async testCache() {
     try {
-      await this.cacheManager.set('test', 'hello-world', {
-        ttl: 300,
-      } as CachingConfig); // 5분
-      const value = await this.cacheManager.get<string>('test');
-      console.log('캐시에서 갖고옴 : ', value);
-      return value ?? '캐시 못 읽음...;;';
+      const value = await this.cacheManager.set('test', 'hello-world'); // 5분
+
+      console.log('캐시에 저장할거 갖고옴 : ', 'hello-world');
     } catch (error) {
       console.log('캐시 못갖고옴', error);
       return '캐시 안됌';
     }
+  }
+
+  async cacheGet() {
+    console.log('캐시 겟 들어옴 ');
+    const value = await this.cacheManager.get('test');
+
+    console.log(value);
+    return value ?? '캐시 못 읽음...;;';
   }
 }

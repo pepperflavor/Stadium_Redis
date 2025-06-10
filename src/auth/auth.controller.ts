@@ -114,7 +114,13 @@ export class AuthController {
   }
 
   @Get('test-cache')
-  testCache(): Promise<string> {
-    return this.authService.testCache();
+  async testCache() {
+    console.log('캐시셋 요청 들어옴 ');
+    await this.authService.testCache();
+  }
+
+  @Get('test-cache-get')
+  async getCache() {
+    return this.authService.cacheGet();
   }
 }

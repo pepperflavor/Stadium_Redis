@@ -22,7 +22,8 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  app.enableCors();
+  await app.listen(3000);
 
   // 👇 PM2 클러스터 모드에서 "ready" 신호 보내기
   if (process.send) {

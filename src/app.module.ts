@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -16,7 +17,10 @@ import { MailModule } from './mail/mail.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { PlayerRecommandModule } from './player-recommand/player-recommand.module';
-import * as redisStore from 'cache-manager-ioredis';
+
+// 추가
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { CacheConfigService } from './common/cacheConfig.service';
 
 @Module({
   imports: [
@@ -34,18 +38,9 @@ import * as redisStore from 'cache-manager-ioredis';
     FileBlobModule,
     AzureStorageModule,
     MailModule,
-    CacheModule.register({
-      isGlobal: true,
-      imports: [ConfigModule],
-      injects: [ConfigService],
-      useFactory: async (config: ConfigService) => ({
-        store: redisStore,
-        host: config.get('REDIS_HOST') || 'localhost',
-        port: parseInt(config.get('REDIS_PORT') || '6379'),
-        ttl: 60 * 60 * 24, // 1 day
-      }),
-    }),
     PlayerRecommandModule,
+    CacheModule.registerAsync({ isGlobal: true, useClass: CacheConfigService }),
+    // CacheModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService, CrawlingService],
