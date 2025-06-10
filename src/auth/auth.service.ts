@@ -410,7 +410,11 @@ export class AuthService {
     console.log('레디스 호스트 출력 : ');
     console.log(this.config.get('REDIS_HOST'));
     try {
-      const value = await this.cacheManager.set('test', 'hello-world'); // 5분
+      const value = await (this.cacheManager as any).set(
+        'test',
+        'hello-world',
+        { ttl: 60 },
+      );
 
       const getvalue = await this.cacheManager.get('test');
       console.log('캐시에 저장할거 갖고옴 : ', 'hello-world');
