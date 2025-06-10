@@ -3,7 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
 @Controller('redis-test')
-export class RedisTestController {
+export class CacheController {
   constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   @Get()
