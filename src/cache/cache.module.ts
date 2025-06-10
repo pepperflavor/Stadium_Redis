@@ -14,7 +14,7 @@ import { CacheService } from './cache.service';
         store: redisStore,
         host: config.get('REDIS_HOST'),
         port: config.get('REDIS_PORT'),
-        ttl: config.get('CACHE_TTL'),
+        ttl: Number(config.get('CACHE_TTL')) || 300000,
       }),
     }),
     ConfigModule,
