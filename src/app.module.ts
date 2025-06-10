@@ -21,6 +21,7 @@ import { PlayerRecommandModule } from './player-recommand/player-recommand.modul
 // 추가
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CacheConfigService } from './common/cacheConfig.service';
+import { CacheModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CacheConfigService } from './common/cacheConfig.service';
     MailModule,
     PlayerRecommandModule,
     CacheModule.registerAsync({ isGlobal: true, useClass: CacheConfigService }),
+    CacheModule,
     // CacheModule,
   ],
   controllers: [AppController],
