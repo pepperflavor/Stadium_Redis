@@ -51,8 +51,6 @@ services:
       redis: # Redis가 켜질 때까지 기다리게 설정
         condition: service_healthy
 
-    networks:
-      - app-network
     healthcheck:
       test: ['CMD', 'wget', '--spider', 'http://localhost:3000/health']
       interval: 10s
@@ -90,7 +88,6 @@ services:
        OLLAMA_HOST=http://ollama:11434 ollama pull qwen3:1.7b &&
        echo 'Model download completed!'"
     restart: 'no'
-
 
   postgres:
     image: pgvector/pgvector:pg16

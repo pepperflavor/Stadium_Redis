@@ -11,10 +11,9 @@ import { redisStore } from 'cache-manager-ioredis-yet';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => ({
-        store: await redisStore({
-          host: config.get('REDIS_HOST', 'redis'),
-          port: config.get('REDIS_PORT', 6379),
-        }),
+        store: redisStore,
+        host: config.get('REDIS_HOST', 'redis'),
+        port: config.get('REDIS_PORT', 6379),
         ttl: 60000,
       }),
     }),
