@@ -17,10 +17,10 @@ import { MailModule } from './mail/mail.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { PlayerRecommandModule } from './player-recommand/player-recommand.module';
-
-// 추가
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CacheConfigService } from './common/cacheConfig.service';
+import * as redisStore from 'cache-manager-redis-store';
+import { CacheTestModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -29,6 +29,12 @@ import { CacheConfigService } from './common/cacheConfig.service';
       envFilePath: ['.env.dev'],
     }),
     ScheduleModule.forRoot(),
+    CacheModule.registerAsync({
+      imports: [ConfigModule],
+      useClass: CacheConfigService,
+      inject: [ConfigService],
+      isGlobal: true,
+    }),
     AuthModule,
     StadiumModule,
     RecommendationsModule,
@@ -39,11 +45,17 @@ import { CacheConfigService } from './common/cacheConfig.service';
     AzureStorageModule,
     MailModule,
     PlayerRecommandModule,
-    CacheModule.registerAsync({ isGlobal: true, useClass: CacheConfigService }),
-    CacheModule,
-    // CacheModule,
+    CacheTestModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService, CrawlingService],
+  providers: [
+    AppService,
+    PrismaService,
+    CrawlingService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheInterceptor,
+    },
+  ],
 })
 export class AppModule {}

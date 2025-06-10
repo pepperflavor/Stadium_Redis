@@ -13,7 +13,7 @@ export class CacheConfigService implements CacheOptionsFactory {
       store: redisStore, // Redis 사용 (선택)
       host: this.configService.get('REDIS_HOST', 'redis'), // 환경변수에서 읽거나 기본값으로 'redis' 사용
       port: this.configService.get('REDIS_PORT', 6379),
-      ttl: 60000,
+      ttl: 6000,
     };
   }
 }
