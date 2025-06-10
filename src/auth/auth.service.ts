@@ -412,7 +412,9 @@ export class AuthService {
     try {
       const value = await this.cacheManager.set('test', 'hello-world'); // 5분
 
+      const getvalue = await this.cacheManager.get('test');
       console.log('캐시에 저장할거 갖고옴 : ', 'hello-world');
+      console.log('캐시 넣자마자 꺼내 : ', getvalue);
     } catch (error) {
       console.log('캐시 못갖고옴', error);
       return '캐시 안됌';

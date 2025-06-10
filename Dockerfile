@@ -64,7 +64,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Change ownership of app directory
 RUN chown -R nextjs:nodejs /app
-USER nextjs
+USER nextjsv
 
 # Expose the port the app runs on
 EXPOSE 3000
