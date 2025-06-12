@@ -123,4 +123,9 @@ export class AuthController {
   async getCache() {
     return this.authService.cacheGet();
   }
+
+  @Get('from-redis')
+  async getRedisValue(){
+    return this.authService.getRedisValue();
+  }
 }

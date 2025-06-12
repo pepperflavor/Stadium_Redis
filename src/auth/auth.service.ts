@@ -15,7 +15,8 @@ import { MailService } from 'src/mail/mail.service';
 
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+
+import { CacheService } from 'src/cache/cache.service';
 
 @Injectable()
 export class AuthService {
@@ -26,8 +27,7 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly config: ConfigService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheService: CacheService,
   ) {}
 
   // 아이디로 로그인
@@ -147,7 +147,7 @@ export class AuthService {
 
     const trimEmail = userData.user_email.toLowerCase().trim();
     const key = `verified-${trimEmail}`;
-    const isVerifiEmail = await this.cacheManager.get(key);
+    const isVerifiEmail = await this.cacheService.get(key);
 
     console.log('isVerifiEmail : ', isVerifiEmail);
 
@@ -159,8 +159,8 @@ export class AuthService {
     // 이제 진짜로 가입 시켜준다~
     await this.userService.signUpWithEmail(userData);
     // 이메일
-    await this.cacheManager.del(key);
-    await this.cacheManager.del(`token-${trimEmail}`);
+    await this.cacheService.del(key);
+    await this.cacheService.del(`token-${trimEmail}`);
 
     return { messase: '회원가입 성공', status: 'success' };
   }
@@ -214,10 +214,10 @@ export class AuthService {
       this.logger.log(`생성된 인증 코드: ${code}`);
 
       // 캐시에 저장 (5분 TTL)
-      await this.cacheManager.set(key, code);
+      await this.cacheService.set(key, code, 300);
 
       // 저장 확인
-      const savedCode = await this.cacheManager.get(key);
+      const savedCode = await this.cacheService.get(key);
       this.logger.log(`저장된 인증 코드 확인: ${savedCode}`);
 
       await this.mailService.sendVerificationCode(trimEmail, code);
@@ -241,7 +241,7 @@ export class AuthService {
     this.logger.log(`검증에 사용되는 키: ${key}`);
 
     try {
-      const savedCode = await this.cacheManager.get(key);
+      const savedCode = await this.cacheService.get(key);
       this.logger.log(`저장된 인증 코드: ${savedCode}`);
       this.logger.log(`입력된 인증 코드: ${inputCode}`);
 
@@ -257,8 +257,8 @@ export class AuthService {
         );
       }
 
-      await this.cacheManager.del(key);
-      await this.cacheManager.set(`verified-${trimEmail}`, true);
+      await this.cacheService.del(key);
+      await this.cacheService.set(`verified-${trimEmail}`, true);
       this.logger.log('인증 성공 - 이메일 검증 상태 저장됨');
 
       return { message: '이메일 인증 성공', status: 'success' };
@@ -284,7 +284,7 @@ export class AuthService {
 
     // 캐시에 저장
     const cacheKey = `find-pwd-${user_email.trim()}`.trim();
-    await this.cacheManager.set(cacheKey, code);
+    await this.cacheService.set(cacheKey, code, 300);
     console.log('비번 찾기 이메일 인증 토큰 : ', code);
     // 이 이메일로 가입한게 맞으면 인증 토큰 쏴주기
     await this.mailService.sendVerificationCode(user_email, code);
@@ -300,7 +300,7 @@ export class AuthService {
     console.log('비밀번호 찾기 이메일 인증 들어옴 : ');
     const trimEmail = user_email.toLowerCase().trim();
     const cacheKey = `find-pwd-${trimEmail}`.trim();
-    const code = await this.cacheManager.get(cacheKey);
+    const code = await this.cacheService.get(cacheKey);
 
     if (!code || code !== token.trim()) {
       throw new UnauthorizedException(
@@ -309,7 +309,7 @@ export class AuthService {
     }
 
     // 인증 성공시 캐시 삭제
-    await this.cacheManager.del(cacheKey);
+    await this.cacheService.del(cacheKey);
 
     return {
       message: '이메일 본인인증 성공, 비밀번호를 변경해주세요',
@@ -363,7 +363,7 @@ export class AuthService {
     await this.mailService.sendVerificationCode(userEmail!, code);
 
     const cacheKey = `find-id-${userEmail.trim()}`.trim();
-    await this.cacheManager.set(cacheKey, code);
+    await this.cacheService.set(cacheKey, code);
 
     console.log('아이디 찾기 인증코드 발송 : ', code);
 
@@ -378,7 +378,7 @@ export class AuthService {
     console.log('아이디 찾기 이메일 인증 들어옴 : ');
     const trimEmail = user_email.toLowerCase().trim();
     const cacheKey = `find-id-${trimEmail}`.trim();
-    const code = await this.cacheManager.get(cacheKey);
+    const code = await this.cacheService.get(cacheKey);
 
     console.log('유저가 입력한 토큰 : ', token);
     console.log('코드 : ', code);
@@ -397,7 +397,7 @@ export class AuthService {
       );
     }
 
-    await this.cacheManager.del(cacheKey);
+    await this.cacheService.del(cacheKey);
     return {
       user_cus_id: user.user_cus_id,
       status: 'success',
@@ -410,13 +410,13 @@ export class AuthService {
     console.log('레디스 호스트 출력 : ');
     console.log(this.config.get('REDIS_HOST'));
     try {
-      const value = await (this.cacheManager as any).set(
+      const value = await (this.cacheService as any).set(
         'test',
         'hello-world',
-        { ttl: 60 },
+        300,
       );
 
-      const getvalue = await this.cacheManager.get('test');
+      const getvalue = await this.cacheService.get('test');
       console.log('캐시에 저장할거 갖고옴 : ', 'hello-world');
       console.log('캐시 넣자마자 꺼내 : ', getvalue);
     } catch (error) {
@@ -427,9 +427,23 @@ export class AuthService {
 
   async cacheGet() {
     console.log('캐시 겟 들어옴 ');
-    const value = await this.cacheManager.get('test');
+    const value = await this.cacheService.get('test');
 
     console.log(value);
     return value ?? '캐시 못 읽음...;;';
+  }
+
+  // 레디스에 저장한 값 갖고옥
+  async getRedisValue() {
+    const key = 'mykey';
+    // console.log(this.cacheManager.stores);
+    console.log('레디스에서 값 갖고오기 들어옴 키값: ', key);
+    const value = await this.cacheService.get(key);
+    console.log('레디스에서 갖고온 값 : ', value);
+    if (value === undefined || value === null) {
+      console.log('레디스 에서 못갖고옴 ');
+    }
+
+    return value;
   }
 }
